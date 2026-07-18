@@ -32,7 +32,7 @@ class Config:
 
     # Agent
     max_iterations: int = 10
-    require_approval: bool = False
+    require_approval: bool = True
     approved_tool_categories: list = field(default_factory=lambda: [
         "system_read", "file_read", "network_read", "process_read",
         "web", "productivity", "research", "pkm",

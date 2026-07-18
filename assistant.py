@@ -27,6 +27,8 @@ from tools import call_tool, get_schemas, list_tools
 
 logger = logging.getLogger(__name__)
 
+__version__ = "1.1.0"
+
 SYSTEM_PROMPT = """\
 You are a versatile AI assistant with access to tools that cover system
 administration, file management, networking, security, programming,
@@ -131,7 +133,11 @@ class Assistant:
         if self.config.require_approval:
             from tools import _REGISTRY
             entry = _REGISTRY.get(fn_name, {})
-            if entry.get("requires_approval") and not self._get_approval(fn_name, args):
+            requires_approval = (
+                entry.get("requires_approval")
+                and entry.get("category") not in self.config.approved_tool_categories
+            )
+            if requires_approval and not self._get_approval(fn_name, args):
                 return {"status": "cancelled", "reason": "User denied approval"}
 
         try:

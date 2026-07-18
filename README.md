@@ -1,58 +1,105 @@
 # Assistant
 
-A Python CLI assistant with an OpenAI-compatible tool-calling loop, persistent
-memory, and tools for files, system administration, networking, programming,
-databases, containers, and research.
+A practical command-line AI assistant with an OpenAI-compatible chat API,
+persistent local memory, and 64 tools for files, system administration,
+networking, programming, databases, containers, research, and optional device
+integrations.
 
 ## Requirements
 
 - Python 3.10 or newer
-- An OpenAI-compatible API key for chat usage
+- An OpenAI-compatible API key for chat requests
 
-## Install and run
+## Install
+
+```bash
+git clone https://github.com/beamingjunkie-lang/assistant.git
+cd assistant
+python -m pip install .
+```
+
+For local development, install the runtime dependency and run tests directly:
 
 ```bash
 python -m pip install -r requirements.txt
-export OPENAI_API_KEY="your-api-key"
-python main.py
-```
-
-Run a single prompt:
-
-```bash
-python main.py --message "Explain this repository"
-```
-
-## Development
-
-Run the test suite:
-
-```bash
 python -m unittest -v
 ```
 
-Continuous integration runs this suite on Python 3.10 through 3.13 for pushes
-to `main` and pull requests.
+## Configure
+
+Create a configuration file without overwriting an existing one:
+
+```bash
+assistant --init-config
+```
+
+Set credentials through your shell; `.env.example` documents the supported
+variables, but is not loaded automatically:
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+export ASSISTANT_MODEL="gpt-4o"
+```
+
+The default configuration and memory paths are `~/.assistant/config.json` and
+`~/.assistant/memory.json`. Use `--config PATH` or `ASSISTANT_CONFIG` to use a
+different configuration file.
+
+## Use
+
+Start an interactive session:
+
+```bash
+assistant
+```
+
+Send a single prompt:
+
+```bash
+assistant --message "Explain this repository"
+```
+
+Discover commands and tools:
+
+```bash
+assistant --help
+assistant --list-tools
+```
+
+Interactive commands:
+
+| Command | Purpose |
+| --- | --- |
+| `/help` | List interactive commands |
+| `/tools [category]` | List available tools, optionally filtered by category |
+| `/memory` | Show local memory statistics |
+| `/recall QUERY` | Search saved memory |
+| `/remember TEXT` | Save a memory item |
+| `/clear` | Clear the current conversation |
+| `/config` | Display effective configuration with the API key redacted |
+
+## Safety
+
+Approval prompts are enabled by default for destructive actions. Use
+`--no-approval` only in an explicitly trusted environment. The assistant also
+asks for scope before broad deletion, blocks filesystem-root deletion and
+private-key exposure, and follows diagnostic playbooks before changing code or
+system state.
 
 ## Optional integrations
 
-- **Cloud:** `cloud_cli_status` detects installed AWS CLI, Azure CLI, and Google
-  Cloud CLI clients without accessing cloud resources.
-- **Virtual machines:** `list_virtual_machines` reads local libvirt or
-  VirtualBox inventory when those tools are installed.
-- **Email:** `draft_email` produces a local RFC 5322 draft and
-  `categorize_email` classifies message text without sending or reading mail.
-- **Mobile:** `android_device_info` reads devices available through `adb`.
-- **Smart home:** set `HOME_ASSISTANT_URL` and `HOME_ASSISTANT_TOKEN` in the
-  environment to read Home Assistant states. Service calls require approval.
+| Integration | Setup | Capability |
+| --- | --- | --- |
+| Cloud CLI | Install AWS CLI, Azure CLI, or Google Cloud CLI | Detect installed clients and versions |
+| Virtual machines | Install libvirt or VirtualBox | List local virtual machines |
+| Email | No external setup | Draft RFC 5322 messages and categorize content locally |
+| Android | Install Android Debug Bridge (`adb`) | List connected devices |
+| Home Assistant | Set `HOME_ASSISTANT_URL` and `HOME_ASSISTANT_TOKEN` | Read states; approved service calls |
 
-## Operational safeguards
+## Development
 
-The assistant asks for a specific performance target before optimizing, asks for
-deletion scope before removing broad sets of files, blocks filesystem-root
-deletion and private-key exposure, and uses diagnostic playbooks for repository
-investigation, build failures, Git recovery, Docker, networking, deployments,
-and upgrades.
+CI runs the test suite on Python 3.10 through 3.13 for pull requests and
+pushes to `main`. The project is MIT licensed; see [LICENSE](LICENSE).
 
 ## GitHub authentication
 

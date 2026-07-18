@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import tempfile
 import unittest
@@ -59,6 +60,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg.model, "gpt-4o")
         self.assertGreater(cfg.max_tokens, 0)
         self.assertGreater(cfg.max_iterations, 0)
+        self.assertTrue(cfg.require_approval)
 
     def test_env_override(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", "ASSISTANT_MODEL": "gpt-3.5-turbo"}):
@@ -77,6 +79,29 @@ class TestConfig(unittest.TestCase):
             self.assertEqual(loaded.model, "gpt-test-model")
         finally:
             tmp.unlink(missing_ok=True)
+
+    def test_cli_init_config(self):
+        from cli import main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "assistant.json"
+            output = io.StringIO()
+            with patch("sys.argv", ["assistant", "--config", str(config_path), "--init-config"]):
+                with patch("sys.stdout", output):
+                    main()
+            self.assertTrue(config_path.exists())
+            self.assertIn("Created configuration", output.getvalue())
+
+    def test_cli_version(self):
+        from cli import main
+
+        output = io.StringIO()
+        with patch("sys.argv", ["assistant", "--version"]):
+            with patch("sys.stdout", output):
+                with self.assertRaises(SystemExit) as raised:
+                    main()
+        self.assertEqual(raised.exception.code, 0)
+        self.assertIn("1.1.0", output.getvalue())
 
 
 # ── Memory ────────────────────────────────────────────────────────────────
@@ -665,6 +690,23 @@ class TestAssistant(unittest.TestCase):
             "function": {"name": "run_command", "arguments": '{"command": "rm -rf /"}'},
         })
         self.assertEqual(result["status"], "blocked")
+
+    def test_approved_category_skips_approval_prompt(self):
+        assistant = self._make_assistant([])
+        assistant.config.require_approval = True
+        assistant.config.approved_tool_categories.append("files")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = str(Path(tmpdir) / "approved.txt")
+            with patch.object(assistant, "_get_approval") as approval:
+                result = assistant._execute_tool({
+                    "function": {
+                        "name": "write_file",
+                        "arguments": json.dumps({"path": path, "content": "approved"}),
+                    },
+                })
+            approval.assert_not_called()
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(Path(path).read_text(), "approved")
 
     def test_operational_playbooks_are_in_system_prompt(self):
         from assistant import SYSTEM_PROMPT

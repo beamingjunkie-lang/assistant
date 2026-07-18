@@ -5,11 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
-from config import Config
-from assistant import Assistant
+from config import Config, DEFAULT_CONFIG_PATH
+from assistant import Assistant, __version__
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable approval prompts for destructive tools",
     )
+    parser.add_argument(
+        "--init-config",
+        action="store_true",
+        help="Create a default configuration file and exit",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
     return parser
 
 
@@ -168,7 +179,17 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
-    cfg = Config.load(Path(args.config) if args.config else None)
+    config_path = Path(args.config) if args.config else Path(
+        os.environ.get("ASSISTANT_CONFIG", DEFAULT_CONFIG_PATH)
+    )
+    if args.init_config:
+        if config_path.exists():
+            parser.error(f"Configuration already exists: {config_path}")
+        Config().save(config_path)
+        print(f"Created configuration: {config_path}")
+        return
+
+    cfg = Config.load(config_path)
     cfg.setup_logging()
 
     if args.model:
