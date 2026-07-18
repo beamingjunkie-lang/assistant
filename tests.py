@@ -78,6 +78,7 @@ class TestConfig(unittest.TestCase):
 class TestMemory(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        self.tmp.write(b"[]")
         self.tmp.close()
         self.cfg = Config()
         self.cfg.memory_path = self.tmp.name
@@ -518,6 +519,7 @@ class TestAssistant(unittest.TestCase):
         cfg = Config()
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tf:
             cfg.memory_path = tf.name
+            tf.write(b"[]")
         cfg.require_approval = False
         assistant = Assistant(cfg)
 
