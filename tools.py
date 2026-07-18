@@ -14,17 +14,17 @@ security    – permissions, malware scan, firewall, auth logs
 processes   – launch/stop/monitor/schedule
 programming – generate/explain/refactor/debug/run/test code
 databases   – query/export/optimize/backup
-cloud       – (scaffold – requires cloud CLI)
+cloud       – cloud CLI discovery
 containers  – build/run/logs/compose
-virt        – VM management (scaffold)
+virt        – virtual machine discovery
 web         – search/scrape/summarize/monitor
 productivity– calendar/tasks/notes/goals/checklists
-email       – draft/read/categorize (scaffold)
+email       – draft and categorize messages
 documents   – PDF/convert/summarize/OCR
 ai_data     – analyze/clean/visualize data, forecasts
 multimedia  – image/audio/video utilities
-mobile      – battery/storage/apps (scaffold)
-smarthome   – lights/locks/sensors (scaffold)
+mobile      – Android device discovery
+smarthome   – Home Assistant state and service control
 finance     – expenses/budget/subscriptions
 research    – gather refs/summarize papers
 pkm         – store/retrieve memories, knowledge graphs
@@ -1246,6 +1246,239 @@ def docker_command(args: list[str]) -> dict:
 def docker_logs(container: str, tail: int = 100) -> dict:
     r = _run(["docker", "logs", "--tail", str(tail), container], timeout=30)
     return _ok(r["stdout"] or r["stderr"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CLOUD
+# ═══════════════════════════════════════════════════════════════════════════
+
+@tool(
+    name="cloud_cli_status",
+    description="Detect installed AWS, Azure, and Google Cloud CLIs and report their versions.",
+    parameters={"type": "object", "properties": {}, "required": []},
+    category="cloud",
+)
+def cloud_cli_status() -> dict:
+    clients = {
+        "aws": ["aws", "--version"],
+        "azure": ["az", "--version"],
+        "gcloud": ["gcloud", "--version"],
+    }
+    status: dict[str, dict[str, Any]] = {}
+    for name, command in clients.items():
+        executable = shutil.which(command[0])
+        if not executable:
+            status[name] = {"installed": False}
+            continue
+        result = _run([executable, *command[1:]], timeout=15)
+        status[name] = {
+            "installed": result["returncode"] == 0,
+            "path": executable,
+            "version": (result["stdout"] or result["stderr"]).splitlines()[0]
+            if result["returncode"] == 0 else "",
+        }
+    return _ok(status)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VIRTUAL MACHINES
+# ═══════════════════════════════════════════════════════════════════════════
+
+@tool(
+    name="list_virtual_machines",
+    description="List local virtual machines through libvirt or VirtualBox.",
+    parameters={"type": "object", "properties": {}, "required": []},
+    category="virt",
+)
+def list_virtual_machines() -> dict:
+    virsh = shutil.which("virsh")
+    if virsh:
+        result = _run([virsh, "list", "--all"], timeout=20)
+        if result["returncode"] == 0:
+            return _ok({"provider": "libvirt", "machines": result["stdout"]})
+        return _err(result["stderr"] or "Unable to query libvirt")
+
+    virtualbox = shutil.which("VBoxManage")
+    if virtualbox:
+        result = _run([virtualbox, "list", "vms"], timeout=20)
+        if result["returncode"] == 0:
+            return _ok({"provider": "virtualbox", "machines": result["stdout"]})
+        return _err(result["stderr"] or "Unable to query VirtualBox")
+
+    return _err("Neither libvirt nor VirtualBox is installed")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EMAIL
+# ═══════════════════════════════════════════════════════════════════════════
+
+_EMAIL_ADDRESS = re.compile(r"^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$")
+
+
+@tool(
+    name="draft_email",
+    description="Create a plain-text RFC 5322 email draft without sending it.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "to": {"type": "array", "items": {"type": "string"}},
+            "subject": {"type": "string"},
+            "body": {"type": "string"},
+            "sender": {"type": "string"},
+        },
+        "required": ["to", "subject", "body"],
+    },
+    category="email",
+)
+def draft_email(to: list[str], subject: str, body: str, sender: str = "") -> dict:
+    if not to or not all(_EMAIL_ADDRESS.fullmatch(address) for address in to):
+        return _err("Provide one or more valid recipient email addresses")
+    if any("\n" in value or "\r" in value for value in [subject, sender]):
+        return _err("Email headers cannot contain line breaks")
+    if sender and not _EMAIL_ADDRESS.fullmatch(sender):
+        return _err("Provide a valid sender email address")
+
+    headers = [f"To: {', '.join(to)}"]
+    if sender:
+        headers.append(f"From: {sender}")
+    headers.extend([
+        f"Subject: {subject}",
+        f"Date: {datetime.now().astimezone().strftime('%a, %d %b %Y %H:%M:%S %z')}",
+        "MIME-Version: 1.0",
+        'Content-Type: text/plain; charset="utf-8"',
+    ])
+    return _ok({"draft": "\n".join(headers) + "\n\n" + body, "recipients": to})
+
+
+@tool(
+    name="categorize_email",
+    description="Categorize an email subject and body using local keyword rules.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "subject": {"type": "string"},
+            "body": {"type": "string"},
+        },
+        "required": ["subject", "body"],
+    },
+    category="email",
+)
+def categorize_email(subject: str, body: str) -> dict:
+    text = f"{subject} {body}".lower()
+    categories = {
+        "security": ("password", "verify", "security alert", "sign-in"),
+        "finance": ("invoice", "receipt", "payment", "refund", "billing"),
+        "action_required": ("action required", "deadline", "respond", "approval"),
+        "newsletter": ("unsubscribe", "newsletter", "weekly digest"),
+    }
+    for category, keywords in categories.items():
+        if matched := next((word for word in keywords if word in text), None):
+            return _ok({"category": category, "matched_keyword": matched})
+    return _ok({"category": "general", "matched_keyword": None})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MOBILE
+# ═══════════════════════════════════════════════════════════════════════════
+
+@tool(
+    name="android_device_info",
+    description="List Android devices connected through Android Debug Bridge (adb).",
+    parameters={"type": "object", "properties": {}, "required": []},
+    category="mobile",
+)
+def android_device_info() -> dict:
+    adb = shutil.which("adb")
+    if not adb:
+        return _err("Android Debug Bridge (adb) is not installed")
+    result = _run([adb, "devices", "-l"], timeout=20)
+    if result["returncode"] != 0:
+        return _err(result["stderr"] or "Unable to query adb devices")
+
+    devices = []
+    for line in result["stdout"].splitlines()[1:]:
+        if not line.strip():
+            continue
+        parts = line.split()
+        devices.append({
+            "serial": parts[0],
+            "state": parts[1] if len(parts) > 1 else "unknown",
+            "details": " ".join(parts[2:]),
+        })
+    return _ok({"devices": devices, "count": len(devices)})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SMART HOME
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _home_assistant_request(path: str, method: str = "GET", payload: Optional[dict] = None) -> dict:
+    base_url = os.environ.get("HOME_ASSISTANT_URL", "").rstrip("/")
+    token = os.environ.get("HOME_ASSISTANT_TOKEN", "")
+    if not base_url or not token:
+        return _err("Set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN to use Home Assistant tools")
+
+    data = json.dumps(payload).encode() if payload is not None else None
+    request = urllib.request.Request(
+        f"{base_url}/api/{path.lstrip('/')}",
+        data=data,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return _ok(json.loads(response.read().decode("utf-8")))
+    except urllib.error.HTTPError as error:
+        return _err(f"Home Assistant returned HTTP {error.code}")
+    except urllib.error.URLError as error:
+        return _err(f"Unable to reach Home Assistant: {error.reason}")
+    except json.JSONDecodeError:
+        return _err("Home Assistant returned invalid JSON")
+
+
+@tool(
+    name="home_assistant_states",
+    description="Read all Home Assistant states or one entity state. Requires HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN.",
+    parameters={
+        "type": "object",
+        "properties": {"entity_id": {"type": "string"}},
+        "required": [],
+    },
+    category="smarthome",
+)
+def home_assistant_states(entity_id: str = "") -> dict:
+    if entity_id and not re.fullmatch(r"[a-z_]+\.[a-zA-Z0-9_]+", entity_id):
+        return _err("Invalid Home Assistant entity ID")
+    suffix = f"/{urllib.parse.quote(entity_id, safe='._')}" if entity_id else ""
+    return _home_assistant_request(f"states{suffix}")
+
+
+@tool(
+    name="home_assistant_call_service",
+    description="Call a Home Assistant service. Requires HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "domain": {"type": "string", "description": "Service domain, e.g. light"},
+            "service": {"type": "string", "description": "Service name, e.g. turn_on"},
+            "service_data": {"type": "object", "default": {}},
+        },
+        "required": ["domain", "service"],
+    },
+    category="smarthome",
+    requires_approval=True,
+)
+def home_assistant_call_service(domain: str, service: str, service_data: Optional[dict] = None) -> dict:
+    if not re.fullmatch(r"[a-z_]+", domain) or not re.fullmatch(r"[a-z_]+", service):
+        return _err("Invalid Home Assistant service domain or name")
+    return _home_assistant_request(
+        f"services/{domain}/{service}",
+        method="POST",
+        payload=service_data or {},
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

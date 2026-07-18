@@ -34,6 +34,18 @@ python -m unittest -v
 Continuous integration runs this suite on Python 3.10 through 3.13 for pushes
 to `main` and pull requests.
 
+## Optional integrations
+
+- **Cloud:** `cloud_cli_status` detects installed AWS CLI, Azure CLI, and Google
+  Cloud CLI clients without accessing cloud resources.
+- **Virtual machines:** `list_virtual_machines` reads local libvirt or
+  VirtualBox inventory when those tools are installed.
+- **Email:** `draft_email` produces a local RFC 5322 draft and
+  `categorize_email` classifies message text without sending or reading mail.
+- **Mobile:** `android_device_info` reads devices available through `adb`.
+- **Smart home:** set `HOME_ASSISTANT_URL` and `HOME_ASSISTANT_TOKEN` in the
+  environment to read Home Assistant states. Service calls require approval.
+
 ## Operational safeguards
 
 The assistant asks for a specific performance target before optimizing, asks for

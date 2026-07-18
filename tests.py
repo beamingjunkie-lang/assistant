@@ -13,22 +13,28 @@ from config import Config
 from memory import Memory
 from tools import (
     analyze_csv,
+    android_device_info,
     call_tool,
+    categorize_email,
     check_connectivity,
     checksum_file,
     compress_files,
+    cloud_cli_status,
     copy_path,
     create_task,
     delete_file,
     describe_data,
     disk_usage,
+    draft_email,
     dns_lookup,
     extract_archive,
     format_report,
     generate_password,
     get_env_vars,
     hash_text,
+    home_assistant_states,
     list_directory,
+    list_virtual_machines,
     list_tools,
     move_path,
     read_file,
@@ -451,6 +457,61 @@ class TestProductivityTools(unittest.TestCase):
     def test_format_report_dict(self):
         r = format_report({"key": "value"}, title="Test")
         self.assertIn("**key**", r["result"])
+
+
+# ── Completed tool domains ────────────────────────────────────────────────
+
+class TestCompletedToolDomains(unittest.TestCase):
+    def test_cloud_cli_status_without_installed_clients(self):
+        with patch("tools.shutil.which", return_value=None):
+            result = cloud_cli_status()
+        self.assertEqual(result["status"], "ok")
+        self.assertFalse(result["result"]["aws"]["installed"])
+        self.assertFalse(result["result"]["azure"]["installed"])
+        self.assertFalse(result["result"]["gcloud"]["installed"])
+
+    def test_list_virtual_machines_without_provider(self):
+        with patch("tools.shutil.which", return_value=None):
+            result = list_virtual_machines()
+        self.assertEqual(result["status"], "error")
+        self.assertIn("Neither libvirt nor VirtualBox", result["error"])
+
+    def test_draft_email(self):
+        result = draft_email(
+            ["person@example.com"],
+            "Status update",
+            "The release is ready.",
+            sender="sender@example.com",
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertIn("To: person@example.com", result["result"]["draft"])
+        self.assertIn("Subject: Status update", result["result"]["draft"])
+
+    def test_draft_email_rejects_header_injection(self):
+        result = draft_email(["person@example.com"], "Hello\nBcc: attacker@example.com", "Body")
+        self.assertEqual(result["status"], "error")
+
+    def test_categorize_email(self):
+        result = categorize_email("Invoice available", "Your payment receipt is attached.")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["result"]["category"], "finance")
+
+    def test_android_device_info_without_adb(self):
+        with patch("tools.shutil.which", return_value=None):
+            result = android_device_info()
+        self.assertEqual(result["status"], "error")
+        self.assertIn("adb", result["error"])
+
+    def test_home_assistant_requires_configuration(self):
+        with patch.dict(os.environ, {"HOME_ASSISTANT_URL": "", "HOME_ASSISTANT_TOKEN": ""}):
+            result = home_assistant_states()
+        self.assertEqual(result["status"], "error")
+        self.assertIn("HOME_ASSISTANT_URL", result["error"])
+
+    def test_home_assistant_rejects_invalid_entity_id(self):
+        result = home_assistant_states("not a valid entity")
+        self.assertEqual(result["status"], "error")
+        self.assertIn("Invalid", result["error"])
 
 
 # ── Tools: Research ───────────────────────────────────────────────────────
