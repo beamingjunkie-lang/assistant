@@ -8,7 +8,7 @@ setup(
     description="A versatile AI assistant covering system, files, network, security, "
                 "programming, databases, containers, web, productivity, documents, "
                 "data analysis, multimedia, finance, research, PKM, monitoring, and automation.",
-    author="",
+    author="AI Assistant contributors",
     python_requires=">=3.10",
     py_modules=[
         "assistant",

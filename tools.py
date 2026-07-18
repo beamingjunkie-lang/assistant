@@ -1120,7 +1120,7 @@ def create_project_scaffold(name: str, directory: str, description: str = "") ->
     (base / "pyproject.toml").write_text(
         f"""[build-system]
 requires = ["setuptools>=68"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "{name}"
