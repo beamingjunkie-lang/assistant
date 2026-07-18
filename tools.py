@@ -408,6 +408,8 @@ def write_file(path: str, content: str, append: bool = False) -> dict:
 )
 def delete_file(path: str) -> dict:
     p = Path(path).expanduser().resolve()
+    if p == Path(p.anchor) or p == Path.home():
+        return _err("Refusing to delete a filesystem root or home directory")
     if not p.exists():
         return _err(f"Not found: {p}")
     try:

@@ -18,6 +18,7 @@ setup(
         "demo",
         "main",
         "memory",
+        "operational_policy",
         "tools",
     ],
     install_requires=[

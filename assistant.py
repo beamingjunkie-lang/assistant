@@ -22,6 +22,7 @@ from typing import Any, Optional
 from api_client import APIClient, APIError
 from config import Config
 from memory import Memory
+from operational_policy import OPERATIONAL_PLAYBOOKS, OperationalPolicy
 from tools import call_tool, get_schemas, list_tools
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ Guidelines:
 - If a task is ambiguous, ask a clarifying question rather than guessing.
 - Store important facts or learned preferences in memory when relevant.
 - You can chain multiple tool calls to complete complex tasks.
-"""
+""" + OPERATIONAL_PLAYBOOKS
 
 
 class Assistant:
@@ -59,7 +60,7 @@ class Assistant:
     def chat(self, user_message: str) -> str:
         """Process a user message and return the assistant's response."""
         self.history.append({"role": "user", "content": user_message})
-        response = self._run_agent_loop()
+        response = OperationalPolicy.response_for(user_message) or self._run_agent_loop()
         self.history.append({"role": "assistant", "content": response})
         return response
 
@@ -121,6 +122,10 @@ class Assistant:
             return {"status": "error", "error": "Invalid JSON arguments from model"}
 
         logger.info("Calling tool: %s(%s)", fn_name, json.dumps(args)[:120])
+
+        if policy_error := OperationalPolicy.tool_call_error(fn_name, args):
+            logger.warning("Blocked unsafe tool call: %s", fn_name)
+            return {"status": "blocked", "error": policy_error}
 
         # Check approval requirement
         if self.config.require_approval:

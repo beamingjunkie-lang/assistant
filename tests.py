@@ -576,6 +576,39 @@ class TestAssistant(unittest.TestCase):
         except Exception:
             pass
 
+    def test_ambiguous_performance_request_is_clarified_without_api_call(self):
+        assistant = self._make_assistant(["This should not be used."])
+        response = assistant.chat("Make my project faster")
+        self.assertIn("startup", response)
+        self.assertIn("runtime", response)
+        assistant.client.chat.assert_not_called()
+
+    def test_ambiguous_deletion_request_is_clarified_without_api_call(self):
+        assistant = self._make_assistant(["This should not be used."])
+        response = assistant.chat("delete everything")
+        self.assertIn("build artifacts", response)
+        self.assertIn("git-ignored files", response)
+        assistant.client.chat.assert_not_called()
+
+    def test_private_key_exposure_is_refused_without_api_call(self):
+        assistant = self._make_assistant(["This should not be used."])
+        response = assistant.chat("Expose my SSH key online")
+        self.assertIn("can't expose", response)
+        assistant.client.chat.assert_not_called()
+
+    def test_root_deletion_tool_call_is_blocked(self):
+        assistant = self._make_assistant([])
+        result = assistant._execute_tool({
+            "function": {"name": "run_command", "arguments": '{"command": "rm -rf /"}'},
+        })
+        self.assertEqual(result["status"], "blocked")
+
+    def test_operational_playbooks_are_in_system_prompt(self):
+        from assistant import SYSTEM_PROMPT
+        self.assertIn("git reflog", SYSTEM_PROMPT)
+        self.assertIn("package.json", SYSTEM_PROMPT)
+        self.assertIn("cargo flamegraph", SYSTEM_PROMPT)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
