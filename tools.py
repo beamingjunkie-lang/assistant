@@ -1189,8 +1189,11 @@ def sqlite_query(db_path: str, query: str, params: Optional[list] = None) -> dic
     requires_approval=True,
 )
 def sqlite_export_csv(db_path: str, table: str, output_path: str) -> dict:
+    # Validate table name to prevent SQL injection (allow only safe identifiers)
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
+        return _err(f"Invalid table name: {table!r}")
     conn = sqlite3.connect(db_path)
-    cur = conn.execute(f"SELECT * FROM {table}")  # noqa: S608
+    cur = conn.execute(f"SELECT * FROM {table}")  # noqa: S608 — table name validated above
     rows = cur.fetchall()
     headers = [d[0] for d in cur.description]
     conn.close()

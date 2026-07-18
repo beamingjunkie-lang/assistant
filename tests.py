@@ -516,7 +516,8 @@ class TestAssistant(unittest.TestCase):
     def _make_assistant(self, responses: list[str]) -> "Assistant":
         from assistant import Assistant
         cfg = Config()
-        cfg.memory_path = tempfile.mktemp(suffix=".json")
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tf:
+            cfg.memory_path = tf.name
         cfg.require_approval = False
         assistant = Assistant(cfg)
 
