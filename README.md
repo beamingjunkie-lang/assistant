@@ -109,6 +109,13 @@ unknown tool category.
 CI runs the test suite on Python 3.10 through 3.13 for pull requests and
 pushes to `main`. The project is MIT licensed; see [LICENSE](LICENSE).
 
+## Change publishing
+
+[`AGENTS.md`](AGENTS.md) defines the required ordered workflow for generated
+code: work in this checkout, validate each coherent change, commit it, and push
+it directly to `main`. The GitHub repository is the authoritative source; do
+not maintain a separate generated copy.
+
 ## GitHub authentication
 
 Use GitHub CLI browser authentication for future pushes:
