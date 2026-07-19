@@ -12,17 +12,49 @@ integrations.
 
 ## Install
 
+### Kali, Debian, Ubuntu, and other PEP 668 systems
+
+Do not use `sudo pip` or `--break-system-packages`. The installer creates an
+isolated virtual environment, installs the complete optional feature set, and
+creates the collision-free `ai-assistant` command:
+
 ```bash
 git clone https://github.com/beamingjunkie-lang/assistant.git
 cd assistant
-python -m pip install .
+bash install.sh
 ```
 
-For local development, install the runtime dependency and run tests directly:
+Start it with:
 
 ```bash
-python -m pip install -r requirements.txt
-python -m unittest -v
+ai-assistant --init-config
+ai-assistant
+```
+
+If `~/.local/bin` is not already on your `PATH`, the installer prints the
+single command needed to add it. The command is intentionally named
+`ai-assistant`, not `assistant`, because Kali may reserve `assistant` for a Qt
+program.
+
+### Manual installation
+
+```bash
+git clone https://github.com/beamingjunkie-lang/assistant.git
+cd assistant
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install ".[full]"
+```
+
+The `full` extra includes the optional Python packages used by document,
+image, and system integrations. Some capabilities also require their own
+system tools or credentials; see [Optional integrations](#optional-integrations).
+
+For local development:
+
+```bash
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m unittest -v
 ```
 
 ## Configure
@@ -30,7 +62,7 @@ python -m unittest -v
 Create a configuration file without overwriting an existing one:
 
 ```bash
-assistant --init-config
+ai-assistant --init-config
 ```
 
 Set credentials through your shell; `.env.example` documents the supported
@@ -50,22 +82,22 @@ different configuration file.
 Start an interactive session:
 
 ```bash
-assistant
+ai-assistant
 ```
 
 Send a single prompt:
 
 ```bash
-assistant --message "Explain this repository"
+ai-assistant --message "Explain this repository"
 ```
 
 Discover commands and tools:
 
 ```bash
-assistant --help
-assistant --list-tools
-assistant --list-tools cloud
-assistant --show-config
+ai-assistant --help
+ai-assistant --list-tools
+ai-assistant --list-tools cloud
+ai-assistant --show-config
 ```
 
 Interactive commands:

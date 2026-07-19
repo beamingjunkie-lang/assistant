@@ -42,6 +42,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
+            "ai-assistant=cli:main",
             "assistant=cli:main",
         ],
     },
