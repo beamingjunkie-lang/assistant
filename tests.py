@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import io
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -595,6 +597,108 @@ class TestToolRegistry(unittest.TestCase):
             self.assertIn("function", s)
             self.assertIn("name", s["function"])
             self.assertIn("parameters", s["function"])
+
+
+class TestCLI(unittest.TestCase):
+    def _assistant(self):
+        from assistant import Assistant
+
+        cfg = Config()
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as memory_file:
+            memory_file.write(b"[]")
+            cfg.memory_path = memory_file.name
+        cfg.log_file = os.devnull
+        return Assistant(cfg)
+
+    def test_exit_command_returns_without_raising(self):
+        from cli import _handle_command
+
+        assistant = self._assistant()
+        self.assertTrue(_handle_command("/quit", assistant, assistant.config))
+
+    def test_approval_command_changes_session_configuration(self):
+        from cli import _handle_command
+
+        assistant = self._assistant()
+        output = io.StringIO()
+        with patch("sys.stdout", output):
+            self.assertFalse(_handle_command("/approval off", assistant, assistant.config))
+        self.assertFalse(assistant.config.require_approval)
+        self.assertIn("disabled", output.getvalue())
+
+    def test_invalid_tool_category_is_explained(self):
+        from cli import _print_tools
+
+        output = io.StringIO()
+        with patch("sys.stdout", output):
+            self.assertFalse(_print_tools("unknown-category"))
+        self.assertIn("Available categories", output.getvalue())
+
+    def test_cli_lists_a_single_tool_category(self):
+        from cli import main
+
+        output = io.StringIO()
+        with patch("sys.argv", ["assistant", "--list-tools", "cloud"]):
+            with patch("sys.stdout", output):
+                self.assertEqual(main(), 0)
+        self.assertIn("cloud_cli_status", output.getvalue())
+        self.assertNotIn("[containers]", output.getvalue())
+
+    def test_main_entry_point_propagates_exit_code(self):
+        result = subprocess.run(
+            [sys.executable, "main.py", "--list-tools", "unknown-category"],
+            cwd=Path(__file__).parent,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Unknown tool category", result.stdout)
+
+    def test_cli_redacts_configuration(self):
+        from cli import main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+            config_path.write_text(json.dumps({"api_key": "secret-value"}))
+            output = io.StringIO()
+            with patch("sys.argv", ["assistant", "--config", str(config_path), "--show-config"]):
+                with patch("sys.stdout", output):
+                    self.assertEqual(main(), 0)
+        self.assertIn('"api_key": "***"', output.getvalue())
+        self.assertNotIn("secret-value", output.getvalue())
+
+    def test_cli_message_without_api_key_returns_error(self):
+        from cli import main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+            config_path.write_text("{}")
+            error = io.StringIO()
+            with patch("sys.argv", ["assistant", "--config", str(config_path), "--message", "Hello"]):
+                with patch("sys.stderr", error):
+                    self.assertEqual(main(), 2)
+        self.assertIn("No API key configured", error.getvalue())
+
+    def test_cli_message_unexpected_failure_returns_error(self):
+        from cli import main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+            config_path.write_text(json.dumps({"api_key": "test-key"}))
+            error = io.StringIO()
+            with patch("cli.Assistant") as assistant_type:
+                assistant_type.return_value.chat.side_effect = RuntimeError("connection failed")
+                with patch("cli.logger.error"):
+                    with patch("sys.argv", ["assistant", "--config", str(config_path), "--message", "Hello"]):
+                        with patch("sys.stderr", error):
+                            self.assertEqual(main(), 1)
+        self.assertIn("connection failed", error.getvalue())
+
+    def test_approval_eof_is_denied(self):
+        assistant = self._assistant()
+        with patch("sys.stdout", io.StringIO()):
+            with patch("builtins.input", side_effect=EOFError):
+                self.assertFalse(assistant._get_approval("write_file", {"path": "example.txt"}))
 
 
 # ── Assistant (mocked) ────────────────────────────────────────────────────

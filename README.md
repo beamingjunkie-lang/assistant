@@ -64,6 +64,8 @@ Discover commands and tools:
 ```bash
 assistant --help
 assistant --list-tools
+assistant --list-tools cloud
+assistant --show-config
 ```
 
 Interactive commands:
@@ -77,6 +79,8 @@ Interactive commands:
 | `/remember TEXT` | Save a memory item |
 | `/clear` | Clear the current conversation |
 | `/config` | Display effective configuration with the API key redacted |
+| `/status` | Display model, approval, conversation, and memory status |
+| `/approval [on\|off]` | Show or change approval prompts for the current session |
 
 ## Safety
 
@@ -85,6 +89,10 @@ Approval prompts are enabled by default for destructive actions. Use
 asks for scope before broad deletion, blocks filesystem-root deletion and
 private-key exposure, and follows diagnostic playbooks before changing code or
 system state.
+
+Non-interactive commands use explicit exit codes: `0` for success, `1` for an
+API failure, and `2` for invalid arguments, unavailable configuration, or an
+unknown tool category.
 
 ## Optional integrations
 

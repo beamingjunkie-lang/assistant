@@ -152,7 +152,11 @@ class Assistant:
         """Interactive approval prompt (only in CLI mode with approval enabled)."""
         print(f"\n⚠️  Tool requires approval: {tool_name}")
         print(f"   Arguments: {json.dumps(args, indent=2)}")
-        answer = input("   Approve? [y/N] ").strip().lower()
+        try:
+            answer = input("   Approve? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\n   Approval not granted.")
+            return False
         return answer in ("y", "yes")
 
     # ------------------------------------------------------------------
