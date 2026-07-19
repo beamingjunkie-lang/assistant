@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import tempfile
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Optional
@@ -72,8 +73,24 @@ class Config:
     def save(self, path: Optional[Path] = None) -> None:
         config_path = Path(path or os.environ.get("ASSISTANT_CONFIG", DEFAULT_CONFIG_PATH))
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w") as f:
-            json.dump(asdict(self), f, indent=2)
+        temporary_path: Optional[Path] = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=config_path.parent,
+                delete=False,
+            ) as temporary_file:
+                json.dump(asdict(self), temporary_file, indent=2)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+                temporary_path = Path(temporary_file.name)
+            os.chmod(temporary_path, 0o600)
+            os.replace(temporary_path, config_path)
+        except OSError:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+            raise
         logger.debug("Saved config to %s", config_path)
 
     def setup_logging(self) -> None:

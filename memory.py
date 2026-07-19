@@ -2,7 +2,9 @@
 
 import json
 import logging
+import os
 import re
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -54,8 +56,24 @@ class Memory:
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path, "w") as f:
-            json.dump(self._entries, f, indent=2)
+        temporary_path: Optional[Path] = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.path.parent,
+                delete=False,
+            ) as temporary_file:
+                json.dump(self._entries, temporary_file, indent=2)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+                temporary_path = Path(temporary_file.name)
+            os.chmod(temporary_path, 0o600)
+            os.replace(temporary_path, self.path)
+        except OSError:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+            raise
 
     # ------------------------------------------------------------------
     # CRUD

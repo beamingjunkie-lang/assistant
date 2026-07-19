@@ -6,6 +6,7 @@ import json
 import io
 import os
 import subprocess
+import stat
 import sys
 import tempfile
 import unittest
@@ -79,6 +80,7 @@ class TestConfig(unittest.TestCase):
             cfg.save(tmp)
             loaded = Config.load(tmp)
             self.assertEqual(loaded.model, "gpt-test-model")
+            self.assertEqual(stat.S_IMODE(tmp.stat().st_mode), 0o600)
         finally:
             tmp.unlink(missing_ok=True)
 
@@ -127,6 +129,7 @@ class TestMemory(unittest.TestCase):
         self.assertIsNotNone(entry)
         self.assertEqual(entry["content"], "Python is awesome")
         self.assertIn("python", entry["tags"])
+        self.assertEqual(stat.S_IMODE(Path(self.tmp.name).stat().st_mode), 0o600)
 
     def test_search(self):
         self.mem.store("Machine learning is fascinating")
